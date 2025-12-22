@@ -1,0 +1,188 @@
+# AudioBridge .gitignore
+# C++ build artifacts and development files
+
+# Build directories
+build/
+cmake-build-*/
+out/
+target/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.make
+compile_commands.json
+CTestTestfile.cmake
+
+# Executables and libraries
+*.exe
+*.out
+*.app
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# Object files and compilation artifacts
+*.o
+*.obj
+*.o.d
+*.obj.d
+*.su
+*.idb
+*.pdb
+*.pch
+*.tmp
+*.rsrc
+
+# Visual Studio
+.vs/
+.vscode/
+*.vcxproj*
+*.sln
+*.vcxproj.filters
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# CLion
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+*.xcuserstate
+project.xcworkspace
+xcuserdata
+DerivedData
+
+# Qt Creator
+*.pro.user*
+*.qbs.user*
+*.moc
+*.moc.*
+*.qrc.cc
+*.qrc.h
+
+# Code::Blocks
+*.cbp
+*.layout
+
+# CodeLite
+*.project
+*.workspace
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim/Emacs
+*~
+*.swp
+*.swo
+.\#*
+\#*#
+
+# Logs
+*.log
+logs/
+
+# Test results
+Testing/
+test_results/
+*.xml
+*.json
+
+# Coverage reports
+coverage/
+*.gcov
+*.gcda
+*.gcno
+coverage.info
+lcov.info
+
+# Profiling data
+*.prof
+*.pprof
+*.profraw
+
+# Package manager files
+vcpkg_installed/
+vcpkg/
+.conan/
+build/
+
+# Dependency files
+external/
+third_party/
+deps/
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+
+# Audio specific
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.aiff
+audio_samples/
+test_audio/
+
+# Configuration and environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Documentation build
+docs/build/
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Package files
+*.deb
+*.rpm
+*.dmg
+*.pkg
+*.tar.gz
+*.zip
+*.7z
+
+# Debug and profiling symbols
+*.debug
+*.sym
+
+# Core dumps
+core
+core.*
+*.core
+
+# Valgrind
+valgrind-*

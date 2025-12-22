@@ -20,10 +20,12 @@ description: "Task list template for feature implementation"
 
 ## Path Conventions
 
-- **Single project**: `src/`, `tests/` at repository root
-- **Web app**: `backend/src/`, `frontend/src/`
-- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
-- Paths shown below assume single project - adjust based on plan.md structure
+- **AudioBridge project**: `src/`, `tests/` at repository root with specialized structure:
+  - `src/core/` - Audio Engine Core (AudioPipeline, RingBuffer, AudioEngine)
+  - `src/adapters/` - Audio I/O Adapter Layer (IAudioInput/Output, PortAudio adapters)
+  - `src/processing/` - DSP/AI Processing (DummyEngine, AIEngine)
+  - `tests/performance/` - Real-time safety and latency benchmarking
+- Paths shown below assume AudioBridge structure - adjust based on plan.md structure
 
 <!-- 
   ============================================================================
@@ -62,12 +64,12 @@ description: "Task list template for feature implementation"
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T004 Setup database schema and migrations framework
-- [ ] T005 [P] Implement authentication/authorization framework
-- [ ] T006 [P] Setup API routing and middleware structure
-- [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T004 Setup CMake build system with cross-platform configuration
+- [ ] T005 [P] Configure PortAudio dependency and cross-platform audio detection
+- [ ] T006 [P] Implement IAudioInput/IAudioOutput adapter interfaces
+- [ ] T007 Create base AudioEngine and RingBuffer components that all stories depend on
+- [ ] T008 Configure spdlog for real-time audio performance monitoring
+- [ ] T009 Setup audio device enumeration and configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -83,17 +85,18 @@ Examples of foundational tasks (adjust based on your project):
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Unit test for [Component] in tests/unit/test_[component].cpp
+- [ ] T011 [P] [US1] Integration test for audio pipeline in tests/integration/test_[pipeline].cpp
+- [ ] T012 [P] [US1] Performance test for real-time constraints in tests/performance/test_[rt].cpp
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T013 [P] [US1] Create [AudioComponent] in src/core/[component].h/cpp
+- [ ] T014 [P] [US1] Create [Adapter] in src/adapters/[adapter].h/cpp
+- [ ] T015 [US1] Implement [ProcessingEngine] in src/processing/[engine].h/cpp (depends on T013, T014)
+- [ ] T016 [US1] Implement [audio feature] in src/[location]/[file].h/cpp
+- [ ] T017 [US1] Add real-time error handling and recovery
+- [ ] T018 [US1] Add performance logging for audio processing
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
