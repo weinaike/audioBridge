@@ -1,0 +1,69 @@
+name: Debug CMake Configuration
+
+on:
+  push:
+    branches: [ 002-audio-io-foundation ]
+  workflow_dispatch:
+
+jobs:
+  debug-linux:
+    name: Debug Linux CMake
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        echo "Installing dependencies..."
+        sudo apt-get update
+        sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libasound2-dev \
+            portaudio19-dev
+
+    - name: Show environment
+      run: |
+        echo "=== Environment ==="
+        env
+        echo ""
+        echo "=== CMake version ==="
+        cmake --version
+        echo ""
+        echo "=== GCC version ==="
+        gcc --version
+        echo ""
+        echo "=== Ninja version ==="
+        ninja --version
+        echo ""
+
+    - name: Configure CMake with verbose output
+      run: |
+        echo "Configuring CMake with verbose output..."
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja --trace-expand 2>&1 | tee cmake_log.txt || {
+          echo "CMake configuration failed!"
+          echo "=== Last 100 lines of CMake log ==="
+          tail -100 cmake_log.txt
+          exit 1
+        }
+      continue-on-error: true
+
+    - name: Upload CMake log
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: cmake-log
+        path: build/cmake_log.txt
+
+    - name: Check CMake cache
+      if: success()
+      run: |
+        echo "=== CMakeCache.txt ==="
+        cat build/CMakeCache.txt || echo "No CMakeCache.txt found"
