@@ -22,8 +22,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     # GCC
     add_compile_options(-Wall -Wextra -Wpedantic)
 
-    # Treat warnings as errors for our code only (not for dependencies)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Werror>)
+    # Note: -Werror is applied per-target in CMakeLists.txt to avoid affecting dependencies
 
     # C++17 specific flags (C++ only)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-noexcept-type>)
@@ -44,8 +43,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Clang (including Apple Clang)
     add_compile_options(-Wall -Wextra -Wpedantic)
 
-    # Treat warnings as errors for our code only (not for dependencies)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Werror>)
+    # Note: -Werror is applied per-target in CMakeLists.txt to avoid affecting dependencies
 
     # C++17 specific flags (C++ only)
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wno-gnu-anonymous-struct>)

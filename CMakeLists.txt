@@ -137,6 +137,13 @@ target_include_directories(audioBridge_lib
         $<INSTALL_INTERFACE:include>
 )
 
+# Treat warnings as errors for our code only (GCC/Clang)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(audioBridge_lib PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+    )
+endif()
+
 target_link_libraries(audioBridge_lib
     PUBLIC
         spdlog::spdlog
@@ -147,6 +154,13 @@ target_link_libraries(audioBridge_lib
 add_executable(audioBridge
     src/main.cpp
 )
+
+# Treat warnings as errors for our code only (GCC/Clang)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(audioBridge PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+    )
+endif()
 
 target_link_libraries(audioBridge
     PRIVATE
@@ -165,6 +179,13 @@ add_executable(unit_tests
     tests/unit/test_mock_audio.cpp
     tests/unit/test_virtual_audio.cpp
 )
+
+# Treat warnings as errors for our code only (GCC/Clang)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(unit_tests PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+    )
+endif()
 
 target_link_libraries(unit_tests
     PRIVATE
@@ -189,6 +210,13 @@ add_executable(integration_tests
     tests/integration/test_audio_playback.cpp
 )
 
+# Treat warnings as errors for our code only (GCC/Clang)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(integration_tests PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+    )
+endif()
+
 target_link_libraries(integration_tests
     PRIVATE
         audioBridge_lib
@@ -202,6 +230,13 @@ gtest_discover_tests(integration_tests)
 add_executable(latency_benchmark
     tests/performance/benchmark_latency.cpp
 )
+
+# Treat warnings as errors for our code only (GCC/Clang)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(latency_benchmark PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+    )
+endif()
 
 target_link_libraries(latency_benchmark
     PRIVATE
