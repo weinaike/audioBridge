@@ -131,4 +131,17 @@ void Logger::Flush() {
     }
 }
 
+void Logger::Reset() {
+    if (pImpl_) {
+        // Flush any pending messages
+        if (pImpl_->logger_) {
+            pImpl_->logger_->flush();
+        }
+        // Reset the logger (release sinks)
+        pImpl_->logger_.reset();
+        // Mark as not initialized
+        pImpl_->initialized_ = false;
+    }
+}
+
 }  // namespace audiobridge

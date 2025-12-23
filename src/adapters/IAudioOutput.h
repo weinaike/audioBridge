@@ -57,6 +57,11 @@ public:
 
     /// Set state change callback
     virtual void SetStateCallback(StreamStateCallback callback) = 0;
+
+    /// Get peak levels (left, right)
+    /// @return Pair of peak levels [0.0, 1.0]
+    /// @note Thread-safe, can be called from any thread
+    virtual std::pair<float, float> GetPeakLevels() const = 0;
 };
 
 }  // namespace audiobridge

@@ -44,6 +44,10 @@ public:
     /// Flush any pending log messages
     void Flush();
 
+    /// Reset logger state (for testing purposes)
+    /// Clears all sinks and resets initialization state
+    void Reset();
+
 private:
     Logger() = default;
     ~Logger();

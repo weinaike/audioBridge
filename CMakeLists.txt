@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 project(audioBridge VERSION 0.1.0 LANGUAGES C CXX)
 
 # Set C++17 standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -50,24 +50,47 @@ if(NOT PortAudio_FOUND)
         GIT_TAG v19.7.0
     )
     FetchContent_MakeAvailable(portaudio)
+
+    # When using FetchContent, we need to link against the portaudio targets
+    set(PORTAUDIO_TARGETS portaudio_static)
 else()
     message(STATUS "Found system PortAudio: ${PortAudio_LIBRARIES}")
+    # When using system PortAudio, use the found libraries
+    set(PORTAUDIO_TARGETS ${PortAudio_LIBRARIES})
 endif()
 
 # Source files
 set(CORE_SOURCES
     src/core/RingBuffer.h
+    src/core/AudioPipeline.h
+    src/core/AudioPipeline.cpp
+    src/core/AudioEngine.h
+    src/core/AudioEngine.cpp
+    src/core/Factory.h
+    src/core/Factory.cpp
+    src/core/AudioDeviceInfo.h
+    src/core/AudioLevels.h
+    src/core/Types.h
 )
 
 set(ADAPTER_SOURCES
     src/adapters/IAudioInput.h
     src/adapters/IAudioOutput.h
     src/adapters/IDeviceEnumerator.h
+    src/adapters/IAudioEngine.h
+    src/adapters/PortAudioInput.h
+    src/adapters/PortAudioInput.cpp
+    src/adapters/PortAudioOutput.h
+    src/adapters/PortAudioOutput.cpp
 )
 
 set(UTILS_SOURCES
     src/utils/Logger.h
     src/utils/Logger.cpp
+    src/utils/DeviceEnumerator.h
+    src/utils/DeviceEnumerator.cpp
+    src/utils/PortAudioHelper.h
+    src/utils/PortAudioHelper.cpp
 )
 
 set(PROCESSING_SOURCES
@@ -92,7 +115,7 @@ target_include_directories(audioBridge_lib
 target_link_libraries(audioBridge_lib
     PUBLIC
         spdlog::spdlog
-        ${PortAudio_LIBRARIES}
+        ${PORTAUDIO_TARGETS}
 )
 
 # Demo application
@@ -111,6 +134,10 @@ enable_testing()
 # GoogleTest unit tests
 add_executable(unit_tests
     tests/unit/test_ring_buffer.cpp
+    tests/unit/test_portaudio_input.cpp
+    tests/unit/test_portaudio_output.cpp
+    tests/unit/test_device_enumerator.cpp
+    tests/unit/test_mock_audio.cpp
 )
 
 target_link_libraries(unit_tests
@@ -120,12 +147,20 @@ target_link_libraries(unit_tests
         gmock_main
 )
 
+# Add tests directory to include path for mocks
+target_include_directories(unit_tests
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+)
+
 include(GoogleTest)
 gtest_discover_tests(unit_tests)
 
 # Integration tests
 add_executable(integration_tests
     tests/integration/test_audio_passthrough.cpp
+    tests/integration/test_audio_capture.cpp
+    tests/integration/test_audio_playback.cpp
 )
 
 target_link_libraries(integration_tests
@@ -161,7 +196,7 @@ install(TARGETS audioBridge audioBridge_lib
 message(STATUS "")
 message(STATUS "================== AudioBridge Configuration ==================")
 message(STATUS "  Version:             ${PROJECT_VERSION}")
-message(STATUS "  C++ Standard:        CMAKE_CXX_STANDARD")
+message(STATUS "  C++ Standard:        ${CMAKE_CXX_STANDARD}")
 message(STATUS "  Build Type:          ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Compiler:            ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "  Install Prefix:      ${CMAKE_INSTALL_PREFIX}")
