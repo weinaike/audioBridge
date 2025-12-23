@@ -22,6 +22,8 @@ jobs:
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
       - name: Configure CMake
