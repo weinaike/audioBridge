@@ -1,0 +1,104 @@
+name: Build Linux
+
+on:
+  push:
+    branches: [ main, develop, master ]
+  pull_request:
+    branches: [ main, develop, master ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux x64
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. 检出代码
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    # 2. 安装依赖
+    - name: Install dependencies
+      run: |
+        echo "Installing dependencies..."
+        sudo apt-get update
+        sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libasound2-dev \
+            portaudio19-dev \
+            ninja-build
+
+    # 3. 配置 CMake
+    - name: Configure CMake
+      run: |
+        echo "Configuring CMake..."
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+    # 4. 编译项目
+    - name: Build project
+      run: |
+        echo "Building audioBridge..."
+        cd build
+        cmake --build . --config Release --parallel $(nproc)
+
+    # 5. 运行测试
+    - name: Run tests
+      run: |
+        echo "Running tests..."
+        cd build
+        ctest --output-on-failure
+
+    # 6. 打包可执行文件
+    - name: Package executables
+      run: |
+        echo "Packaging executables..."
+        mkdir release
+        cp build/audioBridge release/
+        cp build/unit_tests release/
+        cp build/integration_tests release/
+
+        # 创建版本信息文件
+        echo "audioBridge Linux Build" > release/VERSION.txt
+        echo "Built: $(date)" >> release/VERSION.txt
+        echo "Commit: ${{ github.sha }}" >> release/VERSION.txt
+        echo "Branch: ${{ github.ref_name }}" >> release/VERSION.txt
+
+    # 7. 上传构建产物
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: audioBridge-linux-x64
+        path: release/*
+        retention-days: 30
+
+    # 8. 创建 GitHub Release（仅在 tag 时）
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # 9. 构建摘要
+    - name: Build summary
+      if: always()
+      run: |
+        echo "## Linux Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Generated Files" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        ls -lh release/ >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,104 @@
+name: Build Windows
+
+# 触发条件：推送到 main/develop 分支，或手动触发
+on:
+  push:
+    branches: [ main, develop, master ]
+  pull_request:
+    branches: [ main, develop, master ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-latest  # 使用最新的 Windows runner
+
+    steps:
+    # 1. 检出代码
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive  # 包含子模块
+
+    # 2. 设置 MSVC 编译环境
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v2
+
+    # 3. 安装依赖项
+    - name: Install dependencies
+      run: |
+        echo "Installing dependencies..."
+        # 安装 vcpkg 包管理器（如果需要）
+        # PortAudio 和其他依赖将通过 FetchContent 自动获取
+
+    # 4. 配置 CMake
+    - name: Configure CMake
+      run: |
+        echo "Configuring CMake..."
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -A x64
+
+    # 5. 编译项目
+    - name: Build project
+      run: |
+        echo "Building audioBridge..."
+        cd build
+        cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+
+    # 6. 运行测试
+    - name: Run tests
+      run: |
+        echo "Running tests..."
+        cd build
+        ctest -C Release --output-on-failure
+
+    # 7. 打包可执行文件
+    - name: Package executables
+      run: |
+        echo "Packaging executables..."
+        mkdir release
+        copy build\audioBridge\Release\audioBridge.exe release\
+        copy build\unit_tests\Release\unit_tests.exe release\
+        copy build\integration_tests\Release\integration_tests.exe release\
+
+        # 创建版本信息文件
+        echo "audioBridge Windows Build" > release\VERSION.txt
+        echo "Built: %date% %time%" >> release\VERSION.txt
+        echo "Commit: ${{ github.sha }}" >> release\VERSION.txt
+        echo "Branch: ${{ github.ref_name }}" >> release\VERSION.txt
+
+    # 8. 上传构建产物（临时保存）
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: audioBridge-windows-x64
+        path: release/*
+        retention-days: 30  # 保留 30 天
+
+    # 9. 创建 GitHub Release（仅在 tag 时）
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # 10. 构建摘要
+    - name: Build summary
+      if: always()
+      run: |
+        echo "## Windows Build Summary" >> $env:GITHUB_STEP_SUMMARY
+        echo "" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ job.status }}" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **Commit**: ${{ github.sha }}" >> $env:GITHUB_STEP_SUMMARY
+        echo "- **Branch**: ${{ github.ref_name }}" >> $env:GITHUB_STEP_SUMMARY
+        echo "" >> $env:GITHUB_STEP_SUMMARY
+        echo "### Generated Files" >> $env:GITHUB_STEP_SUMMARY
+        echo '```' >> $env:GITHUB_STEP_SUMMARY
+        dir release >> $env:GITHUB_STEP_SUMMARY
+        echo '```' >> $env:GITHUB_STEP_SUMMARY
