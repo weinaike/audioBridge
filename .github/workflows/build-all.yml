@@ -2,9 +2,9 @@ name: Build All Platforms
 
 on:
   push:
-    branches: [ main, develop, master ]
+    branches: [ main, develop, master, 002-audio-io-foundation ]
   pull_request:
-    branches: [ main, develop, master ]
+    branches: [ main, develop, master, 002-audio-io-foundation ]
   workflow_dispatch:
   release:
     types: [created]
@@ -40,8 +40,10 @@ jobs:
       - name: Package
         run: |
           mkdir release
-          copy build\audioBridge\Release\audioBridge.exe release\
-          copy build\unit_tests\Release\unit_tests.exe release\
+          copy build\Release\audioBridge.exe release\
+          copy build\Release\unit_tests.exe release\
+          copy build\Release\integration_tests.exe release\
+          copy build\Release\latency_benchmark.exe release\
           echo "Windows x64 Build" > release\PLATFORM.txt
           echo "Commit: ${{ github.sha }}" >> release\PLATFORM.txt
 
@@ -86,6 +88,8 @@ jobs:
           mkdir release
           cp build/audioBridge release/
           cp build/unit_tests release/
+          cp build/integration_tests release/
+          cp build/latency_benchmark release/
           echo "Linux x64 Build" > release/PLATFORM.txt
           echo "Commit: ${{ github.sha }}" >> release/PLATFORM.txt
 
@@ -125,6 +129,8 @@ jobs:
           mkdir release
           cp build/audioBridge release/
           cp build/unit_tests release/
+          cp build/integration_tests release/
+          cp build/latency_benchmark release/
           echo "macOS x64 Build" > release/PLATFORM.txt
           echo "Commit: ${{ github.sha }}" >> release/PLATFORM.txt
 

@@ -2,9 +2,9 @@ name: Build Linux
 
 on:
   push:
-    branches: [ main, develop, master ]
+    branches: [ main, develop, master, 002-audio-io-foundation ]
   pull_request:
-    branches: [ main, develop, master ]
+    branches: [ main, develop, master, 002-audio-io-foundation ]
   workflow_dispatch:
 
 jobs:
@@ -61,6 +61,7 @@ jobs:
         cp build/audioBridge release/
         cp build/unit_tests release/
         cp build/integration_tests release/
+        cp build/latency_benchmark release/
 
         # 创建版本信息文件
         echo "audioBridge Linux Build" > release/VERSION.txt
