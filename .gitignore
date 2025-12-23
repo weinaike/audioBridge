@@ -136,7 +136,7 @@ deps/
 ehthumbs.db
 Thumbs.db
 desktop.ini
-
+build-windows
 # Temporary files
 *.tmp
 *.temp

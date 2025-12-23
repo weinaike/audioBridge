@@ -20,6 +20,21 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(spdlog)
 
+# Fix for Windows cross-compilation with MinGW-w64
+# Use header-only mode to avoid Windows-specific threading issues
+if(WIN32 AND CMAKE_CROSSCOMPILING)
+    message(STATUS "Cross-compiling for Windows: using header-only spdlog")
+    target_compile_definitions(spdlog INTERFACE
+        SPDLOG_HEADER_ONLY
+        SPDLOG_COMPILED_LIB
+        SPDLOG_WCHAR_TO_UTF8_SUPPORT
+    )
+    # Disable Windows-specific features that cause issues with MinGW
+    target_compile_definitions(spdlog INTERFACE
+        SPDLOG_NO_EXCEPTIONS
+    )
+endif()
+
 # GoogleTest - Testing framework
 FetchContent_Declare(
     googletest
@@ -39,24 +54,34 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(benchmark)
 
 # PortAudio - Cross-platform audio I/O
-# Try to find system PortAudio first, if not found, use FetchContent
-find_package(PortAudio QUIET)
-
-if(NOT PortAudio_FOUND)
-    message(STATUS "PortAudio not found on system, using FetchContent")
+# For cross-compilation, we always use FetchContent to ensure proper configuration
+if(WIN32)
+    # Windows: Always use FetchContent for cross-compilation
+    message(STATUS "Cross-compiling for Windows, using FetchContent for PortAudio")
     FetchContent_Declare(
         portaudio
         GIT_REPOSITORY https://github.com/PortAudio/portaudio.git
         GIT_TAG v19.7.0
     )
     FetchContent_MakeAvailable(portaudio)
-
-    # When using FetchContent, we need to link against the portaudio targets
     set(PORTAUDIO_TARGETS portaudio_static)
 else()
-    message(STATUS "Found system PortAudio: ${PortAudio_LIBRARIES}")
-    # When using system PortAudio, use the found libraries
-    set(PORTAUDIO_TARGETS ${PortAudio_LIBRARIES})
+    # Linux: Try to find system PortAudio first, if not found, use FetchContent
+    find_package(PortAudio QUIET)
+
+    if(NOT PortAudio_FOUND)
+        message(STATUS "PortAudio not found on system, using FetchContent")
+        FetchContent_Declare(
+            portaudio
+            GIT_REPOSITORY https://github.com/PortAudio/portaudio.git
+            GIT_TAG v19.7.0
+        )
+        FetchContent_MakeAvailable(portaudio)
+        set(PORTAUDIO_TARGETS portaudio_static)
+    else()
+        message(STATUS "Found system PortAudio: ${PortAudio_LIBRARIES}")
+        set(PORTAUDIO_TARGETS ${PortAudio_LIBRARIES})
+    endif()
 endif()
 
 # Source files
@@ -138,6 +163,7 @@ add_executable(unit_tests
     tests/unit/test_portaudio_output.cpp
     tests/unit/test_device_enumerator.cpp
     tests/unit/test_mock_audio.cpp
+    tests/unit/test_virtual_audio.cpp
 )
 
 target_link_libraries(unit_tests

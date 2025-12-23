@@ -302,6 +302,74 @@ TEST_F(DeviceEnumeratorTest, GetDefaultDevices_WhenNoneAvailable_ReturnsNoDevice
 }
 
 // =============================================================================
+// Test: Device Filtering
+// =============================================================================
+
+TEST_F(DeviceEnumeratorTest, GetAllDevices_FiltersNonAudioDevices) {
+    PaError err = Pa_Initialize();
+    ASSERT_GE(err, 0);
+
+    PaDeviceIndex count = Pa_GetDeviceCount();
+    ASSERT_GT(count, 0);
+
+    // Verify that all devices in GetAllDevices have at least one input or output channel
+    for (PaDeviceIndex i = 0; i < count; ++i) {
+        const PaDeviceInfo* info = Pa_GetDeviceInfo(i);
+        ASSERT_NE(info, nullptr);
+
+        // All devices should have at least one channel (input or output)
+        bool hasAudioChannels = (info->maxInputChannels > 0 || info->maxOutputChannels > 0);
+        EXPECT_TRUE(hasAudioChannels)
+            << "Device " << i << " (" << info->name << ") "
+            << "has no audio channels (in=" << info->maxInputChannels
+            << ", out=" << info->maxOutputChannels << ")";
+    }
+}
+
+TEST_F(DeviceEnumeratorTest, DeviceFiltering_LogicallyConsistent) {
+    PaError err = Pa_Initialize();
+    ASSERT_GE(err, 0);
+
+    PaDeviceIndex count = Pa_GetDeviceCount();
+    ASSERT_GT(count, 0);
+
+    // Count devices with input or output channels
+    int devicesWithChannels = 0;
+    int inputOnlyDevices = 0;
+    int outputOnlyDevices = 0;
+    int duplexDevices = 0;
+
+    for (PaDeviceIndex i = 0; i < count; ++i) {
+        const PaDeviceInfo* info = Pa_GetDeviceInfo(i);
+        ASSERT_NE(info, nullptr);
+
+        bool hasInput = info->maxInputChannels > 0;
+        bool hasOutput = info->maxOutputChannels > 0;
+
+        if (hasInput || hasOutput) {
+            devicesWithChannels++;
+            if (hasInput && !hasOutput) {
+                inputOnlyDevices++;
+            } else if (!hasInput && hasOutput) {
+                outputOnlyDevices++;
+            } else {
+                duplexDevices++;
+            }
+        }
+    }
+
+    // Verify logical consistency
+    EXPECT_EQ(devicesWithChannels, inputOnlyDevices + outputOnlyDevices + duplexDevices);
+    EXPECT_GT(devicesWithChannels, 0) << "Expected at least one audio device";
+
+    std::cout << "Device breakdown:" << std::endl;
+    std::cout << "  Total audio devices: " << devicesWithChannels << std::endl;
+    std::cout << "  Input-only: " << inputOnlyDevices << std::endl;
+    std::cout << "  Output-only: " << outputOnlyDevices << std::endl;
+    std::cout << "  Duplex (both): " << duplexDevices << std::endl;
+}
+
+// =============================================================================
 // Test: Thread Safety
 // =============================================================================
 

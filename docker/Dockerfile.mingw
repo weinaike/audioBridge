@@ -1,0 +1,43 @@
+# Dockerfile for cross-compiling audioBridge to Windows using MinGW-w64
+#
+# Usage:
+#   docker build -t audiobridge-mingw:latest -f docker/Dockerfile.mingw .
+#   docker run --rm -v $(pwd):/project audiobridge-mingw:latest
+
+FROM ubuntu:22.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential \
+    cmake \
+    git \
+    ninja-build \
+    pkg-config \
+    # MinGW-w64 cross-compilation toolchain
+    mingw-w64 \
+    mingw-w64-tools \
+    mingw-w64-x86-64-dev \
+    # Utilities
+    file \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /project
+
+# Verify MinGW installation
+RUN x86_64-w64-mingw32-g++ --version && \
+    echo "✅ MinGW-w64 installed successfully"
+
+# Create a non-root user for building (optional, for security)
+RUN useradd -m -s /bin/bash builder && \
+    chown -R builder:builder /project
+USER builder
+
+# Default command
+CMD ["/bin/bash"]

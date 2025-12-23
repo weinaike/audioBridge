@@ -55,13 +55,17 @@ std::vector<AudioDeviceInfo> DeviceEnumerator::GetAllDevices() {
     devices.reserve(static_cast<size_t>(count));
 
     for (PaDeviceIndex i = 0; i < count; ++i) {
-        AudioDeviceInfo deviceInfo = ConvertPaDeviceInfo(i);
-        if (deviceInfo.IsValid()) {
-            devices.push_back(deviceInfo);
+        const PaDeviceInfo* paInfo = Pa_GetDeviceInfo(i);
+        // Filter: Only include devices that have at least one input or output channel
+        if (paInfo && (paInfo->maxInputChannels > 0 || paInfo->maxOutputChannels > 0)) {
+            AudioDeviceInfo deviceInfo = ConvertPaDeviceInfo(i);
+            if (deviceInfo.IsValid()) {
+                devices.push_back(deviceInfo);
+            }
         }
     }
 
-    AB_LOG_DEBUG("DeviceEnumerator: Found " + std::to_string(devices.size()) + " devices");
+    AB_LOG_DEBUG("DeviceEnumerator: Found " + std::to_string(devices.size()) + " audio devices (filtered)");
     return devices;
 }
 
