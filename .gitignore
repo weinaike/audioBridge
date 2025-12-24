@@ -48,6 +48,20 @@ CTestTestfile.cmake
 *.sln
 *.vcxproj.filters
 *.suo
+
+# Test results and artifacts
+test-results/
+*.test.xml
+*.test.json
+
+# Captured test audio
+captured-audio/
+*.captured.wav
+*.captured.flac
+
+# Test execution history
+.audioBridge/tests/executions/
+.audioBridge/tests/history/
 *.user
 *.userosscache
 *.sln.docstates
@@ -126,7 +140,7 @@ build/
 external/
 third_party/
 deps/
-
+test-build
 # OS specific files
 .DS_Store
 .DS_Store?
@@ -180,7 +194,7 @@ docs/_templates/
 *.sym
 
 # Core dumps
-core
+
 core.*
 *.core
 

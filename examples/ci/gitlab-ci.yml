@@ -1,0 +1,214 @@
+# GitLab CI Pipeline for audioBridge Linux Virtual Audio Testing
+#
+# This pipeline automates audio loopback testing on Ubuntu using:
+# - ALSA snd-aloop kernel module for virtual audio devices
+# - audioBridge-test CLI for test execution
+# - JUnit XML report generation for test results visualization
+#
+# Usage:
+# - Automatically runs on push to main branch
+# - Runs on merge requests
+# - Can be triggered manually via pipeline
+
+stages:
+  - build
+  - test
+  - report
+
+variables:
+  TEST_SUITE: "default"
+  BUILD_DIR: "build"
+
+# Cache build dependencies between runs
+cache:
+  key: "${CI_COMMIT_REF_SLUG}"
+  paths:
+    - build/
+    - test-data/audio/
+
+# Build stage
+build:
+  stage: build
+  image: ubuntu:latest
+  before_script:
+    - echo "Installing build dependencies..."
+    - apt-get update -qq
+    - apt-get install -y -qq alsa-utils sox libsndfile1 build-essential cmake git
+  script:
+    - echo "Loading snd-aloop kernel module..."
+    - modprobe snd-aloop
+    - lsmod | grep snd_aloop
+    - echo "Configuring build..."
+    - mkdir -p build && cd build
+    - cmake ..
+    - make audioBridge-test
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 hour
+  tags:
+    - linux
+    - docker
+
+# Test stage
+test:setup:
+  stage: test
+  image: ubuntu:latest
+  dependencies:
+    - build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq alsa-utils
+    - modprobe snd-aloop
+  script:
+    - cd build
+    - echo "Running setup check..."
+    - ./tests/tools/audioBridge-test setup-check
+  artifacts:
+    when: always
+    reports:
+      junit: build/test-results/setup-*.xml
+  tags:
+    - linux
+    - docker
+  allow_failure: false
+
+test:devices:
+  stage: test
+  image: ubuntu:latest
+  dependencies:
+    - build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq alsa-utils
+    - modprobe snd-aloop
+  script:
+    - cd build
+    - echo "Listing audio devices..."
+    - ./tests/tools/audioBridge-test list-devices
+    - echo ""
+    - echo "Listing loopback devices..."
+    - ./tests/tools/audioBridge-test list-devices --type loopback --json
+  artifacts:
+    when: always
+    reports:
+      junit: build/test-results/devices-*.xml
+  tags:
+    - linux
+    - docker
+  allow_failure: false
+
+test:audio:
+  stage: test
+  image: ubuntu:latest
+  dependencies:
+    - build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq alsa-utils sox
+    - modprobe snd-aloop
+    # Generate test audio if needed
+    - chmod +x scripts/utils/generate-test-audio.sh
+    - scripts/utils/generate-test-audio.sh || true
+  script:
+    - cd build
+    - echo "Running single test..."
+    - if [ -f "../test-data/audio/1khz-sine.wav" ]; then
+        ./tests/tools/audioBridge-test run ../test-data/audio/1khz-sine.wav;
+      else
+        echo "WARNING: Test audio not found, skipping...";
+      fi
+  artifacts:
+    when: always
+    reports:
+      junit: build/test-results/test-*.xml
+  tags:
+    - linux
+    - docker
+  allow_failure: false
+
+test:suite:
+  stage: test
+  image: ubuntu:latest
+  dependencies:
+    - build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq alsa-utils sox
+    - modprobe snd-aloop
+  script:
+    - cd build
+    - echo "Running test suite..."
+    - ./tests/tools/audioBridge-test run-suite ${TEST_SUITE}
+    - echo ""
+    - echo "Running test suite with continue-on-error..."
+    - ./tests/tools/audioBridge-test run-suite ${TEST_SUITE} --continue-on-error
+  artifacts:
+    when: always
+    reports:
+      junit: build/test-results/suite-*.xml
+    paths:
+      - build/test-results/
+    expire_in: 1 week
+  tags:
+    - linux
+    - docker
+  allow_failure: false
+
+# Report stage
+report:summary:
+  stage: report
+  image: ubuntu:latest
+  dependencies:
+    - test:suite
+  script:
+    - echo "Generating test summary..."
+    - mkdir -p test-results
+    - |
+      cat > test-results/summary.txt <<EOF
+      audioBridge Test Report
+      ========================
+
+      Date: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+      Commit: ${CI_COMMIT_SHA:0:8}
+      Branch: ${CI_COMMIT_REF_NAME}
+      Pipeline: ${CI_PIPELINE_ID}
+
+      Test Suite: ${TEST_SUITE}
+      Platform: Ubuntu Latest (GitLab CI)
+
+      For detailed results, see the test artifacts.
+      EOF
+    - cat test-results/summary.txt
+  artifacts:
+    paths:
+      - test-results/
+    expire_in: 30 days
+  tags:
+    - linux
+    - docker
+
+# Manual test job with custom suite
+test:manual:
+  stage: test
+  image: ubuntu:latest
+  dependencies:
+    - build
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq alsa-utils sox
+    - modprobe snd-aloop
+  script:
+    - cd build
+    - echo "Running manual test suite..."
+    - ./tests/tools/audioBridge-test run-suite ${CUSTOM_SUITE}
+  when: manual
+  variables:
+    CUSTOM_SUITE: "default"
+  artifacts:
+    when: always
+    reports:
+      junit: build/test-results/manual-*.xml
+  tags:
+    - linux
+    - docker

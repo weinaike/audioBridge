@@ -1,0 +1,168 @@
+# GitHub Actions Workflow for audioBridge Linux Virtual Audio Testing
+#
+# This workflow automates audio loopback testing on Ubuntu using:
+# - ALSA snd-aloop kernel module for virtual audio devices
+# - audioBridge-test CLI for test execution
+# - JUnit XML report generation for test results visualization
+#
+# Usage:
+# - Automatically runs on push to main branch
+# - Runs on pull requests targeting main branch
+# - Can be triggered manually via workflow_dispatch
+
+name: AudioBridge Linux Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'default'
+        type: choice
+        options:
+          - default
+          - quick
+          - comprehensive
+
+jobs:
+  linux-audio-testing:
+    name: Virtual Audio Loopback Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            alsa-utils \
+            sox \
+            libsndfile1 \
+            build-essential \
+            cmake \
+            git
+
+      - name: Install snd-aloop kernel module
+        run: |
+          sudo modprobe snd-aloop
+          sudo lsmod | grep snd_aloop
+          echo "snd-aloop" | sudo tee /etc/modules-load.d/snd-aloop.conf
+
+      - name: Verify audio devices
+        run: |
+          echo "=== Audio Devices ==="
+          aplay -l
+          echo ""
+          echo "=== Loopback Devices ==="
+          aplay -l | grep -A 2 "Loopback" || echo "No loopback devices found"
+
+      - name: Build project
+        run: |
+          mkdir -p build && cd build
+          cmake ..
+          make audioBridge-test
+
+      - name: Generate test audio
+        run: |
+          # Check if test audio exists, generate if needed
+          if [ ! -f "test-data/audio/1khz-sine.wav" ]; then
+            echo "Generating test audio files..."
+            if command -v sox &> /dev/null; then
+              chmod +x scripts/utils/generate-test-audio.sh
+              ./scripts/utils/generate-test-audio.sh
+            else
+              echo "WARNING: SoX not installed, skipping test audio generation"
+            fi
+          fi
+
+      - name: Run setup check
+        run: |
+          cd build
+          ./tests/tools/audioBridge-test setup-check
+
+      - name: List available devices
+        run: |
+          cd build
+          ./tests/tools/audioBridge-test list-devices
+
+      - name: List loopback devices only
+        run: |
+          cd build
+          ./tests/tools/audioBridge-test list-devices --type loopback
+
+      - name: Run single test
+        run: |
+          cd build
+          if [ -f "../test-data/audio/1khz-sine.wav" ]; then
+            ./tests/tools/audioBridge-test run ../test-data/audio/1khz-sine.wav
+          else
+            echo "Skipping test - audio file not found"
+          fi
+
+      - name: Run test suite
+        run: |
+          cd build
+          ./tests/tools/audioBridge-test run-suite default
+
+      - name: Run test suite with continue-on-error
+        if: always()
+        run: |
+          cd build
+          ./tests/tools/audioBridge-test run-suite default --continue-on-error
+
+      - name: Generate test report
+        if: always()
+        run: |
+          cd build
+          mkdir -p test-results
+
+          # Create summary report
+          {
+            echo "# audioBridge Test Report"
+            echo ""
+            echo "**Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo "**Commit**: ${{ github.sha }}"
+            echo "**Branch**: ${{ github.ref_name }}"
+            echo ""
+            echo "## Test Execution Summary"
+            echo ""
+            echo "Platform: Ubuntu Latest (GitHub Actions)"
+            echo "Tests: Automated virtual audio loopback testing"
+            echo ""
+          } > test-results/summary.md
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/test-results/
+          retention-days: 30
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: build/test-results/**/*.xml
+          check_name: AudioBridge Test Results
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "### 🧪 Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Suite**: audioBridge Linux Virtual Audio Testing" >> $GITHUB_STEP_SUMMARY
+          echo "**Platform**: Ubuntu Latest" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "For detailed results, see the uploaded artifacts." >> $GITHUB_STEP_SUMMARY

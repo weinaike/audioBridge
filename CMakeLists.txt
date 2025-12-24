@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard")
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Set CMAKE_MODULE_PATH for custom Find modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 # Include compiler flags
 include(cmake/CompilerFlags.cmake)
 
@@ -253,6 +256,118 @@ install(TARGETS audioBridge audioBridge_lib
     RUNTIME DESTINATION bin
 )
 
+# ============================================================================
+# Linux Virtual Audio Testing (Feature 003)
+# ============================================================================
+
+if(UNIX AND NOT APPLE)
+    message(STATUS "Linux detected: enabling virtual audio testing tools")
+
+    # Find ALSA for Linux audio
+    find_package(ALSA REQUIRED)
+
+    # Find libsndfile for audio file I/O
+    find_package(SndFile REQUIRED)
+
+    # Find Gist audio analysis library (header-only)
+    find_package(Gist REQUIRED)
+
+    if(ALSA_FOUND AND SNDFILE_FOUND AND GIST_FOUND)
+        message(STATUS "All Linux test dependencies found - building test tools")
+
+        # Test tools source files
+        set(TEST_TOOLS_SOURCES
+            tests/tools/VirtualDeviceManager.h
+            tests/tools/VirtualDeviceManager.cpp
+            tests/tools/AudioValidator.h
+            tests/tools/AudioValidator.cpp
+            tests/tools/AudioFileHandler.h
+            tests/tools/AudioFileHandler.cpp
+            tests/tools/TestRunner.h
+            tests/tools/TestRunner.cpp
+            tests/tools/ConfigManager.h
+            tests/tools/ConfigManager.cpp
+            tests/tools/ErrorHandler.h
+            tests/tools/ErrorHandler.cpp
+            tests/tools/ReportGenerator.h
+            tests/tools/ReportGenerator.cpp
+        )
+
+        # AudioBridge test executable
+        add_executable(audioBridge-test
+            tests/tools/audioBridge-test.cpp
+            ${TEST_TOOLS_SOURCES}
+        )
+
+        target_include_directories(audioBridge-test
+            PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/src
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                Gist::Gist
+        )
+
+        target_link_libraries(audioBridge-test
+            PRIVATE
+                audioBridge_lib
+                ALSA::ALSA
+                SndFile::SndFile
+                spdlog::spdlog
+        )
+
+        # Treat warnings as errors for test tools (temporarily disabled for testing)
+        # if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        #     target_compile_options(audioBridge-test PRIVATE
+        #         $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+        #     )
+        # endif()
+
+        # Install test tools
+        install(TARGETS audioBridge-test
+            RUNTIME DESTINATION bin
+        )
+
+        # Install shell scripts
+        install(PROGRAMS
+            scripts/audioBridge-test.sh
+            scripts/setup-check.sh
+            scripts/run-suite.sh
+            DESTINATION bin
+        )
+
+        # Install test data
+        install(DIRECTORY test-data/
+            DESTINATION share/audioBridge/test-data
+            FILES_MATCHING PATTERN "*.wav" PATTERN "*.json" PATTERN "*.md"
+        )
+
+        # Install documentation
+        install(DIRECTORY docs/linux-audio-testing/
+            DESTINATION share/doc/audioBridge/linux-audio-testing
+        )
+
+        # Install CI examples
+        install(DIRECTORY examples/ci/
+            DESTINATION share/audioBridge/examples/ci
+        )
+
+        message(STATUS "  Linux Test Tools:    ENABLED")
+    else()
+        message(WARNING "Some Linux test dependencies missing:")
+        if(NOT ALSA_FOUND)
+            message(WARNING "    - ALSA not found")
+        endif()
+        if(NOT SNDFILE_FOUND)
+            message(WARNING "    - libsndfile not found")
+        endif()
+        if(NOT GIST_FOUND)
+            message(WARNING "    - Gist not found")
+        endif()
+        message(WARNING "  Linux test tools will NOT be built")
+    endif()
+else()
+    message(STATUS "Not Linux - skipping virtual audio testing tools")
+endif()
+
 # Print configuration summary
 message(STATUS "")
 message(STATUS "================== AudioBridge Configuration ==================")
@@ -265,5 +380,10 @@ message(STATUS "  PortAudio:           ${PortAudio_LIBRARIES}")
 message(STATUS "  spdlog:              spdlog::spdlog")
 message(STATUS "  GoogleTest:          gtest_main")
 message(STATUS "  Google Benchmark:    benchmark::benchmark")
+if(UNIX AND NOT APPLE AND ALSA_FOUND AND SNDFILE_FOUND AND GIST_FOUND)
+    message(STATUS "  Linux Test Tools:    ENABLED")
+else()
+    message(STATUS "  Linux Test Tools:    DISABLED")
+endif()
 message(STATUS "=============================================================")
 message(STATUS "")
