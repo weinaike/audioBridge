@@ -10,9 +10,14 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <cstring>
+
+#ifdef SNDFILE_FOUND
+#include <sndfile.h>
+#endif
 
 #ifdef GIST_FOUND
-#include "gist.h"
+#include "Gist.h"
 #endif
 
 namespace audioBridge {
@@ -46,8 +51,8 @@ public:
             return spectrum;
         }
 
-        // Initialize Gist processor
-        Gist<float> gist(fftSize, sampleRate);
+        // Initialize Gist processor (use global namespace qualifier)
+        ::Gist::Gist<float> gist(fftSize, sampleRate);
 
         // Process frames and accumulate spectrum
         spectrum.resize(fftSize / 2 + 1, 0.0f);
@@ -150,20 +155,58 @@ IntegrityCheckResult AudioValidator::checkIntegrity(const std::string& audioFile
         return result;
     }
 
-    // TODO: In full implementation, parse actual file header to get:
-    // - Actual sample rate
-    // - Actual channel count
-    // - Actual duration
-    // For now, we do basic validation
+#ifdef SNDFILE_FOUND
+    // Parse actual file header using libsndfile
+    SF_INFO sfinfo;
+    std::memset(&sfinfo, 0, sizeof(sfinfo));
+
+    SNDFILE* sndFile = sf_open(audioFile.c_str(), SFM_READ, &sfinfo);
+    if (!sndFile) {
+        lastError_ = std::string("Failed to open audio file: ") + sf_strerror(nullptr);
+        spdlog::error(lastError_);
+        result.formatValid = false;
+        return result;
+    }
+
+    // Get actual file properties
+    int actualSampleRate = sfinfo.samplerate;
+    int actualChannels = sfinfo.channels;
+    float actualDuration = static_cast<float>(sfinfo.frames) / actualSampleRate;
+
+    spdlog::info("File properties: sr={}, ch={}, dur={:.2f}s, frames={}",
+                 actualSampleRate, actualChannels, actualDuration, sfinfo.frames);
+
+    // Validate properties
+    result.sampleRateMatch = (actualSampleRate == expectedSampleRate);
+    result.channelCountMatch = (actualChannels == expectedChannels);
+
+    // Allow 5% tolerance on duration
+    float durationTolerance = expectedDuration * 0.05f;
+    result.durationMatch = (std::abs(actualDuration - expectedDuration) <= durationTolerance);
+
+    sf_close(sndFile);
+
+    if (!result.sampleRateMatch) {
+        spdlog::error("Sample rate mismatch: expected {}, got {}", expectedSampleRate, actualSampleRate);
+    }
+    if (!result.channelCountMatch) {
+        spdlog::error("Channel count mismatch: expected {}, got {}", expectedChannels, actualChannels);
+    }
+    if (!result.durationMatch) {
+        spdlog::error("Duration mismatch: expected {:.2f}s, got {:.2f}s",
+                      expectedDuration, actualDuration);
+    }
+#else
+    // Fallback: placeholder validation
+    spdlog::warn("libsndfile not available - using placeholder integrity check");
+    result.sampleRateMatch = true;
+    result.channelCountMatch = true;
+    result.durationMatch = true;
+#endif
 
     // File size validation
     result.fileSizeValid = isValidFileSize(audioFile, expectedDuration,
                                             expectedSampleRate, expectedChannels);
-
-    // Placeholder: Assume match for now (will be implemented with libsndfile)
-    result.sampleRateMatch = true;
-    result.channelCountMatch = true;
-    result.durationMatch = true;
 
     spdlog::info("Integrity check result: {}",
                  result.allValid() ? "PASS" : "FAIL");
@@ -597,11 +640,49 @@ float AudioValidator::calculateCorrelation(const std::vector<float>& audio1,
 std::vector<float> AudioValidator::loadAudioFile(const std::string& audioFile,
                                                    int& outSampleRate,
                                                    int& outChannels) {
-    // Placeholder implementation
-    // In production, this would use libsndfile to load actual audio data
+#ifdef SNDFILE_FOUND
+    // Real implementation using libsndfile
+    spdlog::debug("Loading audio file: {}", audioFile);
 
-    (void)audioFile;  // Suppress unused parameter warning (placeholder implementation)
-    spdlog::warn("Using placeholder audio loader - returning synthetic data");
+    SF_INFO sfinfo;
+    std::memset(&sfinfo, 0, sizeof(sfinfo));
+
+    SNDFILE* sndFile = sf_open(audioFile.c_str(), SFM_READ, &sfinfo);
+    if (!sndFile) {
+        lastError_ = std::string("Failed to open audio file: ") + sf_strerror(nullptr);
+        spdlog::error("{}: {}", audioFile, lastError_);
+        return {};
+    }
+
+    // Set output parameters
+    outSampleRate = sfinfo.samplerate;
+    outChannels = sfinfo.channels;
+
+    spdlog::debug("Audio file info: samplerate={}, channels={}, frames={}",
+                  outSampleRate, outChannels, sfinfo.frames);
+
+    // Allocate buffer for audio data
+    std::vector<float> audio;
+    audio.resize(sfinfo.frames * outChannels);
+
+    // Read audio data
+    sf_count_t framesRead = sf_readf_float(sndFile, audio.data(), sfinfo.frames);
+    if (framesRead != sfinfo.frames) {
+        spdlog::warn("Expected {} frames, read {}", sfinfo.frames, framesRead);
+    }
+
+    // Close file
+    if (sf_close(sndFile) != 0) {
+        spdlog::warn("Error closing audio file: {}", audioFile);
+    }
+
+    spdlog::info("Loaded {} frames ({} samples) from {}",
+                 framesRead, audio.size(), audioFile);
+
+    return audio;
+#else
+    // Fallback placeholder implementation
+    spdlog::warn("libsndfile not available - using placeholder audio loader");
 
     // Generate synthetic sine wave at 1kHz
     outSampleRate = 48000;
@@ -617,6 +698,7 @@ std::vector<float> AudioValidator::loadAudioFile(const std::string& audioFile,
     }
 
     return audio;
+#endif
 }
 
 float AudioValidator::dbToLinear(float db) {

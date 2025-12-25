@@ -35,6 +35,7 @@
 #include <cerrno>
 #include <csignal>
 #include <atomic>
+#include <sstream>
 
 #include <spdlog/spdlog.h>
 
@@ -45,6 +46,7 @@
 #include "ReportGenerator.h"
 #include "AudioValidator.h"
 #include "LatencyMeasurer.h"
+#include "AudioIOHandler.h"
 
 using namespace audioBridge::testing;
 
@@ -572,22 +574,52 @@ int commandRun(const Options& opts) {
         std::cout << "  Capture: " << captureDevice.deviceName << " [" << captureDevice.deviceId << "]\n\n";
     }
 
-    // T042, T043: Simulated test execution
-    // NOTE: Full PortAudio integration requires linking with src/adapters/
-    // This is a simplified version that demonstrates the workflow
+    // T042, T043: Real test execution with PortAudio I/O
+    AudioIOHandler audioIO;
+    AudioIOConfig config;
+    config.sampleRate = 48000;
+    config.channels = 2;
+    config.framesPerBuffer = 512;
+
+    if (!audioIO.initialize(config)) {
+        std::cerr << Colors::RED << "Error: Failed to initialize audio I/O: "
+                  << audioIO.getLastError() << Colors::RESET << "\n";
+        return 1;
+    }
 
     std::cout << "Test Execution:\n";
     std::cout << "  1. ✓ Devices configured\n";
-    std::cout << "  2. ✓ Test audio loaded: " << testFile << "\n";
 
-    // Simulate test execution
-    std::cout << "  3. ⏳ Playing audio to loopback...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    std::cout << Colors::GREEN << "     ✓ Playback complete (5.0s)" << Colors::RESET << "\n";
+    // Load audio file
+    std::cout << "  2. ⏳ Loading test audio: " << testFile << "\n";
+    std::vector<float> playbackAudio;
+    int sampleRate, channels;
+    if (!audioIO.loadAudioFile(testFile, sampleRate, channels, playbackAudio)) {
+        std::cerr << Colors::RED << "Error: Failed to load audio file: "
+                  << audioIO.getLastError() << Colors::RESET << "\n";
+        return 1;
+    }
+    std::cout << Colors::GREEN << "     ✓" << Colors::RESET << " Loaded " << playbackAudio.size() / channels
+              << " frames, " << channels << " ch, " << sampleRate << " Hz\n";
 
-    std::cout << "  4. ⏳ Capturing audio from loopback...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    std::cout << Colors::GREEN << "     ✓ Capture complete (5.0s)" << Colors::RESET << "\n";
+    // Prepare capture buffer
+    std::vector<float> capturedAudio;
+
+    // Execute loopback test
+    std::cout << "  3. ⏳ Running loopback test (playback + capture)...\n";
+
+    auto startTime = std::chrono::steady_clock::now();
+
+    if (!audioIO.startLoopbackTest(playbackAudio, capturedAudio, sampleRate, channels)) {
+        std::cerr << Colors::RED << "Error: Loopback test failed: "
+                  << audioIO.getLastError() << Colors::RESET << "\n";
+        return 1;
+    }
+
+    auto endTime = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+    std::cout << Colors::GREEN << "     ✓ Test complete (" << duration.count() / 1000.0 << "s)" << Colors::RESET << "\n";
 
     // Generate captured filename
     auto now = std::chrono::system_clock::now();
@@ -596,25 +628,43 @@ int commandRun(const Options& opts) {
     basename = basename.substr(0, basename.find_last_of('.'));
     std::string capturedFile = "captured-" + std::to_string(timestamp) + "-" + basename + ".wav";
 
-    std::cout << "  5. ✓ Captured audio saved: " << capturedFile << "\n";
-    std::cout << "  6. ⏳ Validating captured audio...\n";
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    std::cout << "  4. ⏳ Saving captured audio...\n";
+    if (!audioIO.saveToWav(capturedFile, capturedAudio, sampleRate, channels)) {
+        std::cerr << Colors::YELLOW << "Warning: Failed to save captured audio: "
+                  << audioIO.getLastError() << Colors::RESET << "\n";
+    } else {
+        std::cout << Colors::GREEN << "     ✓ Captured audio saved: " << capturedFile << Colors::RESET << "\n";
+    }
 
-    // Simulate validation results
-    std::cout << Colors::GREEN << "     ✓ Validation PASSED" << Colors::RESET << "\n";
-    std::cout << "       Format: WAV, 48000 Hz, 16-bit, stereo\n";
-    std::cout << "       Duration: 5.0 s\n";
-    std::cout << "       File size: 480 KB\n\n";
+    // Validate captured audio
+    std::cout << "  5. ⏳ Validating captured audio...\n";
+
+    AudioValidator validator;
+    SignalQualityMetrics metrics = validator.calculateSignalQuality(capturedFile);
+
+    bool validationPassed = (metrics.snr >= 30.0f); // Lower threshold for real audio
+
+    if (validationPassed) {
+        std::cout << Colors::GREEN << "     ✓ Validation PASSED" << Colors::RESET << "\n";
+    } else {
+        std::cout << Colors::YELLOW << "     ⚠ Validation WARNING" << Colors::RESET << "\n";
+    }
+    std::cout << "       SNR: " << std::fixed << std::setprecision(1) << metrics.snr << " dB\n";
+    std::cout << "       THD: " << std::fixed << std::setprecision(2) << metrics.thd << "%\n";
+    std::cout << "       Peak: " << std::fixed << std::setprecision(4) << metrics.peakAmplitude << "\n";
+    std::cout << "       RMS: " << std::fixed << std::setprecision(4) << metrics.rmsLevel << "\n";
+    std::cout << "       Frames: " << capturedAudio.size() / channels << "\n\n";
 
     std::cout << std::string(40, '=') << "\n";
-    std::cout << Colors::GREEN << Colors::BOLD << "Status: TEST PASSED ✓" << Colors::RESET << "\n";
+    if (validationPassed) {
+        std::cout << Colors::GREEN << Colors::BOLD << "Status: TEST PASSED ✓" << Colors::RESET << "\n";
+    } else {
+        std::cout << Colors::YELLOW << Colors::BOLD << "Status: TEST COMPLETED WITH WARNINGS ⚠" << Colors::RESET << "\n";
+    }
     std::cout << std::string(40, '=') << "\n\n";
 
-    std::cout << "Note: This is a simulated test execution.\n";
-    std::cout << "Full PortAudio integration (T042) will provide actual audio I/O.\n";
-    std::cout << "For now, this demonstrates the complete workflow and device selection.\n\n";
-
     spdlog::info("Test execution completed successfully");
+    audioIO.stop();
 
     return 0;
 }

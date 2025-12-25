@@ -283,6 +283,8 @@ if(UNIX AND NOT APPLE)
             tests/tools/AudioValidator.cpp
             tests/tools/AudioFileHandler.h
             tests/tools/AudioFileHandler.cpp
+            tests/tools/AudioIOHandler.h
+            tests/tools/AudioIOHandler.cpp
             tests/tools/TestRunner.h
             tests/tools/TestRunner.cpp
             tests/tools/ConfigManager.h
@@ -303,6 +305,7 @@ if(UNIX AND NOT APPLE)
             PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                ${CMAKE_CURRENT_SOURCE_DIR}/third_party/gist
                 Gist::Gist
         )
 
@@ -312,6 +315,12 @@ if(UNIX AND NOT APPLE)
                 ALSA::ALSA
                 SndFile::SndFile
                 spdlog::spdlog
+        )
+
+        # Define compile macros for optional dependencies
+        target_compile_definitions(audioBridge-test PRIVATE
+            GIST_FOUND=1
+            SNDFILE_FOUND=1
         )
 
         # Treat warnings as errors for test tools (temporarily disabled for testing)
